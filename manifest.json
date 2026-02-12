@@ -1,11 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Latex Copy Helper for Word",
+  "name": "Latex Word Export Helper",
   "version": "1.0.0",
-  "description": "Add a draggable floating button to copy selected text and normalize LaTeX for Word.",
-  "permissions": [
-    "clipboardWrite"
-  ],
+  "description": "Add a draggable floating button to export selected content as a Word .docx with equations.",
   "content_scripts": [
     {
       "matches": [
