@@ -1,0 +1,57 @@
+#latex-copy-helper-fab {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2147483647;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(140deg, #0f7b6c, #2f6fed);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: grab;
+  box-shadow: 0 10px 24px rgba(15, 33, 60, 0.35);
+  user-select: none;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+}
+
+#latex-copy-helper-fab:hover {
+  transform: scale(1.05);
+  box-shadow: 0 14px 28px rgba(15, 33, 60, 0.42);
+}
+
+#latex-copy-helper-fab:active,
+#latex-copy-helper-fab.is-dragging {
+  cursor: grabbing;
+  transform: scale(0.97);
+}
+
+#latex-copy-helper-toast {
+  position: fixed;
+  right: 24px;
+  top: 24px;
+  z-index: 2147483647;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(20, 31, 47, 0.94);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+#latex-copy-helper-toast.is-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#latex-copy-helper-toast.is-error {
+  background: rgba(156, 35, 35, 0.96);
+}
