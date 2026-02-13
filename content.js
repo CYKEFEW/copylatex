@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   if (window.top !== window.self) {
     return;
   }
@@ -1632,6 +1632,11 @@
         return { type: "msqrt", body: body || emptyNode() };
       }
 
+      if (name === "overline" || name === "bar") {
+        const body = parseRequiredArg();
+        return { type: "mbar", body: body || emptyNode() };
+      }
+
       if (name === "text" || name === "mathrm" || name === "operatorname") {
         const raw = parseRawGroupText();
         return { type: "mtext", text: raw };
@@ -1794,6 +1799,15 @@
       return "<msqrt>" + serializeMathNode(node.body) + "</msqrt>";
     }
 
+    if (node.type === "mbar") {
+      return (
+        '<mover accent="true">' +
+        serializeMathNode(node.body) +
+        "<mo>&#x203E;</mo>" +
+        "</mover>"
+      );
+    }
+
     if (node.type === "msub") {
       return (
         "<msub>" +
@@ -1843,7 +1857,11 @@
     }
 
     if (node.type === "msqrt") {
-      return "√(" + serializeReadableMath(node.body) + ")";
+      return "sqrt(" + serializeReadableMath(node.body) + ")";
+    }
+
+    if (node.type === "mbar") {
+      return "overline(" + serializeReadableMath(node.body) + ")";
     }
 
     if (node.type === "msub") {
@@ -1921,6 +1939,17 @@
         serializeOMMLArg(node.body) +
         "</m:e>" +
         "</m:rad>"
+      );
+    }
+
+    if (node.type === "mbar") {
+      return (
+        "<m:bar>" +
+        "<m:barPr><m:pos m:val=\"top\"/></m:barPr>" +
+        "<m:e>" +
+        serializeOMMLArg(node.body) +
+        "</m:e>" +
+        "</m:bar>"
       );
     }
 
@@ -2184,3 +2213,4 @@
     }, 1800);
   }
 })();
+
