@@ -178,36 +178,131 @@
 
   const LATEX_CMD_TO_OPERATOR = {
     cdot: "\u22c5",
+    ldots: "\u2026",
+    cdots: "\u22ef",
+    vdots: "\u22ee",
+    ddots: "\u22f1",
     times: "\u00d7",
     div: "\u00f7",
     pm: "\u00b1",
     mp: "\u2213",
+    ast: "\u2217",
+    star: "\u22c6",
+    circ: "\u2218",
+    bullet: "\u2219",
     le: "\u2264",
     leq: "\u2264",
+    leqq: "\u2266",
     ge: "\u2265",
     geq: "\u2265",
+    geqq: "\u2267",
     neq: "\u2260",
     ne: "\u2260",
+    equiv: "\u2261",
+    cong: "\u2245",
+    propto: "\u221d",
     approx: "\u2248",
+    sim: "\u223c",
+    simeq: "\u2243",
+    asymp: "\u224d",
+    ll: "\u226a",
+    gg: "\u226b",
     in: "\u2208",
     notin: "\u2209",
+    ni: "\u220b",
+    owns: "\u220b",
     subset: "\u2282",
     subseteq: "\u2286",
+    subsetneq: "\u228a",
+    subsetneqq: "\u2acb",
     supset: "\u2283",
     supseteq: "\u2287",
+    supsetneq: "\u228b",
+    supsetneqq: "\u2acc",
+    nsubseteq: "\u2288",
+    nsupseteq: "\u2289",
+    emptyset: "\u2205",
+    varnothing: "\u2205",
+    forall: "\u2200",
+    exists: "\u2203",
+    nexists: "\u2204",
+    neg: "\u00ac",
+    lnot: "\u00ac",
     cup: "\u222a",
     cap: "\u2229",
+    bigcup: "\u222a",
+    bigcap: "\u2229",
+    bigsqcup: "\u2294",
+    bigvee: "\u2228",
+    bigwedge: "\u2227",
+    bigoplus: "\u2295",
+    bigotimes: "\u2297",
+    bigodot: "\u2299",
+    biguplus: "\u228e",
+    setminus: "\u2216",
+    smallsetminus: "\u2216",
+    sqcup: "\u2294",
+    sqcap: "\u2293",
+    land: "\u2227",
+    lor: "\u2228",
+    wedge: "\u2227",
+    vee: "\u2228",
+    oplus: "\u2295",
+    otimes: "\u2297",
+    odot: "\u2299",
+    oslash: "\u2298",
+    ominus: "\u2296",
     to: "\u2192",
+    mapsto: "\u21a6",
     leftarrow: "\u2190",
     rightarrow: "\u2192",
     leftrightarrow: "\u2194",
     Rightarrow: "\u21d2",
     Leftarrow: "\u21d0",
     Leftrightarrow: "\u21d4",
+    longleftarrow: "\u27f5",
+    longrightarrow: "\u27f6",
+    longleftrightarrow: "\u27f7",
+    Longleftarrow: "\u27f8",
+    Longrightarrow: "\u27f9",
+    Longleftrightarrow: "\u27fa",
+    hookleftarrow: "\u21a9",
+    hookrightarrow: "\u21aa",
+    uparrow: "\u2191",
+    downarrow: "\u2193",
+    updownarrow: "\u2195",
+    Uparrow: "\u21d1",
+    Downarrow: "\u21d3",
+    Updownarrow: "\u21d5",
+    nearrow: "\u2197",
+    searrow: "\u2198",
+    swarrow: "\u2199",
+    nwarrow: "\u2196",
+    arrow: "\u2192",
+    rarrow: "\u2192",
+    larrow: "\u2190",
+    parallel: "\u2225",
+    nparallel: "\u2226",
+    perp: "\u22a5",
+    angle: "\u2220",
+    measuredangle: "\u2221",
+    sphericalangle: "\u2222",
+    triangle: "\u25b3",
+    therefore: "\u2234",
+    because: "\u2235",
     lbrace: "{",
     rbrace: "}",
+    lvert: "|",
+    rvert: "|",
+    lVert: "\u2016",
+    rVert: "\u2016",
     langle: "\u27e8",
     rangle: "\u27e9",
+    lfloor: "\u230a",
+    rfloor: "\u230b",
+    lceil: "\u2308",
+    rceil: "\u2309",
+    mid: "|",
     vert: "|",
     Vert: "\u2016"
   };
@@ -465,6 +560,14 @@
 
     segments.forEach((segment) => {
       if (segment.type === "math") {
+        if (shouldDemoteMathSegmentToText(segment.content)) {
+          const demotedText = normalizeText(convertMathLikeLatexToText(segment.content));
+          if (demotedText) {
+            normalized.push({ type: "text", content: demotedText });
+          }
+          return;
+        }
+
         const latex = normalizeMathLatex(segment.content);
         if (latex) {
           normalized.push({ type: "math", content: latex });
@@ -1222,6 +1325,51 @@
     return (input || "").replace(/\u00a0/g, " ");
   }
 
+  function shouldDemoteMathSegmentToText(input) {
+    const raw = cleanLatexText(input || "");
+    if (!raw || raw.indexOf("\\") < 0) {
+      return false;
+    }
+
+    if (/[{}_^]/.test(raw)) {
+      return false;
+    }
+
+    if (
+      /\\(frac|dfrac|tfrac|sqrt|sum|prod|int|lim|log|ln|sin|cos|tan|exp|cdot|times|div|leq|geq|neq|infty|mu|sigma|alpha|beta|gamma|delta|theta|lambda|phi|psi|omega)\b/.test(
+        raw
+      )
+    ) {
+      return false;
+    }
+
+    const plain = convertMathLikeLatexToText(raw);
+    const words = plain
+      .split(/[^A-Za-z]+/)
+      .filter((word) => word.length >= 4);
+
+    const hasArrowCommand = /\\(to|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|arrow|rarrow|larrow)\b/.test(
+      raw
+    );
+
+    return hasArrowCommand && words.length >= 2;
+  }
+
+  function convertMathLikeLatexToText(input) {
+    let text = String(input || "");
+    text = text.replace(/\\(rightarrow|to|arrow|rarrow)\b/g, " \u2192 ");
+    text = text.replace(/\\(leftarrow|larrow)\b/g, " \u2190 ");
+    text = text.replace(/\\leftrightarrow\b/g, " \u2194 ");
+    text = text.replace(/\\Rightarrow\b/g, " \u21d2 ");
+    text = text.replace(/\\Leftarrow\b/g, " \u21d0 ");
+    text = text.replace(/\\Leftrightarrow\b/g, " \u21d4 ");
+    text = text.replace(/\\quad\b/g, " ");
+    text = text.replace(/\\qquad\b/g, "  ");
+    text = text.replace(/\\[,;:!]/g, " ");
+    text = text.replace(/\\ /g, " ");
+    return normalizeWhitespace(text);
+  }
+
   function normalizeLatexCommands(text) {
     let output = text;
     output = output.replace(/\\dfrac\b/g, "\\frac");
@@ -1230,10 +1378,6 @@
     output = output.replace(/\\textstyle\b/g, "");
     output = output.replace(/\\left\s*/g, "");
     output = output.replace(/\\right\s*/g, "");
-    output = output.replace(/\\,/g, " ");
-    output = output.replace(/\\!/g, "");
-    output = output.replace(/\\;/g, " ");
-    output = output.replace(/\\:/g, " ");
     return output;
   }
 
@@ -1637,6 +1781,18 @@
         return { type: "mbar", body: body || emptyNode() };
       }
 
+      if (name === "quad") {
+        return { type: "mspace", width: "1em", text: " " };
+      }
+
+      if (name === "qquad") {
+        return { type: "mspace", width: "2em", text: "  " };
+      }
+
+      if (name === " ") {
+        return { type: "mspace", width: "0.333em", text: " " };
+      }
+
       if (name === "text" || name === "mathrm" || name === "operatorname") {
         const raw = parseRawGroupText();
         return { type: "mtext", text: raw };
@@ -1654,8 +1810,20 @@
         return { type: "mo", text: LATEX_CMD_TO_OPERATOR[name] };
       }
 
-      if (name === "," || name === ";" || name === ":" || name === "!") {
-        return { type: "mtext", text: " " };
+      if (name === ",") {
+        return { type: "mspace", width: "0.1667em", text: " " };
+      }
+
+      if (name === ":") {
+        return { type: "mspace", width: "0.2222em", text: " " };
+      }
+
+      if (name === ";") {
+        return { type: "mspace", width: "0.2778em", text: " " };
+      }
+
+      if (name === "!") {
+        return null;
       }
 
       if (name === "\\") {
@@ -1786,6 +1954,10 @@
       return "<mtext>" + escapeXml(node.text || "") + "</mtext>";
     }
 
+    if (node.type === "mspace") {
+      return '<mspace width="' + escapeXml(node.width || "0.1667em") + '"></mspace>';
+    }
+
     if (node.type === "mfrac") {
       return (
         "<mfrac>" +
@@ -1852,6 +2024,10 @@
       return String(node.text || "");
     }
 
+    if (node.type === "mspace") {
+      return String(node.text || " ");
+    }
+
     if (node.type === "mfrac") {
       return "(" + serializeReadableMath(node.numerator) + ")/(" + serializeReadableMath(node.denominator) + ")";
     }
@@ -1916,6 +2092,10 @@
 
     if (node.type === "mi" || node.type === "mn" || node.type === "mo" || node.type === "mtext") {
       return buildOMMLRun(node.text || "");
+    }
+
+    if (node.type === "mspace") {
+      return buildOMMLRun(node.text || " ");
     }
 
     if (node.type === "mfrac") {
