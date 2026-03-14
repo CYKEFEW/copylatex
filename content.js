@@ -307,6 +307,107 @@
     Vert: "\u2016"
   };
 
+  const SCRIPT_STYLE_CODEPOINTS = {
+    upper: {
+      A: 0x1d49c,
+      B: 0x212c,
+      C: 0x1d49e,
+      D: 0x1d49f,
+      E: 0x2130,
+      F: 0x2131,
+      G: 0x1d4a2,
+      H: 0x210b,
+      I: 0x2110,
+      J: 0x1d4a5,
+      K: 0x1d4a6,
+      L: 0x2112,
+      M: 0x2133,
+      N: 0x1d4a9,
+      O: 0x1d4aa,
+      P: 0x1d4ab,
+      Q: 0x1d4ac,
+      R: 0x211b,
+      S: 0x1d4ae,
+      T: 0x1d4af,
+      U: 0x1d4b0,
+      V: 0x1d4b1,
+      W: 0x1d4b2,
+      X: 0x1d4b3,
+      Y: 0x1d4b4,
+      Z: 0x1d4b5
+    },
+    lower: {
+      a: 0x1d4b6,
+      b: 0x1d4b7,
+      c: 0x1d4b8,
+      d: 0x1d4b9,
+      e: 0x212f,
+      f: 0x1d4bb,
+      g: 0x210a,
+      h: 0x1d4bd,
+      i: 0x1d4be,
+      j: 0x1d4bf,
+      k: 0x1d4c0,
+      l: 0x1d4c1,
+      m: 0x1d4c2,
+      n: 0x1d4c3,
+      o: 0x2134,
+      p: 0x1d4c5,
+      q: 0x1d4c6,
+      r: 0x1d4c7,
+      s: 0x1d4c8,
+      t: 0x1d4c9,
+      u: 0x1d4ca,
+      v: 0x1d4cb,
+      w: 0x1d4cc,
+      x: 0x1d4cd,
+      y: 0x1d4ce,
+      z: 0x1d4cf
+    }
+  };
+
+  const DOUBLE_STRUCK_STYLE_CODEPOINTS = {
+    upper: {
+      A: 0x1d538,
+      B: 0x1d539,
+      C: 0x2102,
+      D: 0x1d53b,
+      E: 0x1d53c,
+      F: 0x1d53d,
+      G: 0x1d53e,
+      H: 0x210d,
+      I: 0x1d540,
+      J: 0x1d541,
+      K: 0x1d542,
+      L: 0x1d543,
+      M: 0x1d544,
+      N: 0x2115,
+      O: 0x1d546,
+      P: 0x2119,
+      Q: 0x211a,
+      R: 0x211d,
+      S: 0x1d54a,
+      T: 0x1d54b,
+      U: 0x1d54c,
+      V: 0x1d54d,
+      W: 0x1d54e,
+      X: 0x1d54f,
+      Y: 0x1d550,
+      Z: 0x2124
+    }
+  };
+
+  const MATRIX_ENVIRONMENT_DELIMITERS = {
+    matrix: { left: "", right: "" },
+    smallmatrix: { left: "", right: "" },
+    bmatrix: { left: "[", right: "]" },
+    pmatrix: { left: "(", right: ")" },
+    Bmatrix: { left: "{", right: "}" },
+    vmatrix: { left: "|", right: "|" },
+    Vmatrix: { left: "\u2016", right: "\u2016" },
+    cases: { left: "{", right: "" }
+  };
+
   const fab = document.createElement("button");
   fab.id = FAB_ID;
   fab.type = "button";
@@ -1737,8 +1838,9 @@
         return expression;
       }
 
-      const base = parseBase();
-      return base ? parseScripts(base) : null;
+      // In TeX, an unbraced sub/superscript consumes exactly one atom.
+      // A following ^ or _ belongs to the outer expression, not this argument.
+      return parseBase();
     }
 
     function parseCommand() {
@@ -1796,6 +1898,27 @@
       if (name === "text" || name === "mathrm" || name === "operatorname") {
         const raw = parseRawGroupText();
         return { type: "mtext", text: raw };
+      }
+
+      if (name === "mathbf" || name === "boldsymbol" || name === "bm") {
+        return applyMathStyleNode(parseRequiredArg() || emptyNode(), "bold");
+      }
+
+      if (name === "mathbb") {
+        return applyMathStyleNode(parseRequiredArg() || emptyNode(), "double-struck");
+      }
+
+      if (name === "mathcal" || name === "mathscr") {
+        return applyMathStyleNode(parseRequiredArg() || emptyNode(), "script");
+      }
+
+      if (name === "begin") {
+        return parseEnvironment(parseRawGroupText());
+      }
+
+      if (name === "end") {
+        parseRawGroupText();
+        return null;
       }
 
       if (name === "left" || name === "right") {
@@ -1901,6 +2024,42 @@
       }
     }
 
+    function parseEnvironment(name) {
+      return parseMathEnvironment(name, readEnvironmentBody(name));
+    }
+
+    function readEnvironmentBody(name) {
+      const parts = [];
+      const stack = [];
+
+      while (!isEnd()) {
+        const directive = readLatexEnvironmentDirective(source, index);
+        if (directive) {
+          index += directive.raw.length;
+
+          if (directive.kind === "begin") {
+            stack.push(directive.name);
+            parts.push(directive.raw);
+            continue;
+          }
+
+          if (stack.length === 0 && directive.name === name) {
+            return parts.join("");
+          }
+
+          if (stack.length > 0 && stack[stack.length - 1] === directive.name) {
+            stack.pop();
+          }
+          parts.push(directive.raw);
+          continue;
+        }
+
+        parts.push(next());
+      }
+
+      return parts.join("");
+    }
+
     function parseChar(ch) {
       if (/[0-9]/.test(ch)) {
         return { type: "mn", text: ch };
@@ -1926,6 +2085,319 @@
       parseExpression,
       skipSpaces
     };
+  }
+
+  function applyMathStyleNode(node, style) {
+    if (!node) {
+      return emptyNode();
+    }
+
+    if (node.type === "mrow") {
+      return {
+        type: "mrow",
+        children: (node.children || []).map((child) => applyMathStyleNode(child, style))
+      };
+    }
+
+    if (node.type === "mi" || node.type === "mn" || node.type === "mtext") {
+      return {
+        type: node.type,
+        text: applyMathStyleText(node.text || "", style)
+      };
+    }
+
+    if (node.type === "mfrac") {
+      return {
+        type: "mfrac",
+        numerator: applyMathStyleNode(node.numerator, style),
+        denominator: applyMathStyleNode(node.denominator, style)
+      };
+    }
+
+    if (node.type === "msqrt") {
+      return {
+        type: "msqrt",
+        body: applyMathStyleNode(node.body, style)
+      };
+    }
+
+    if (node.type === "mbar") {
+      return {
+        type: "mbar",
+        body: applyMathStyleNode(node.body, style)
+      };
+    }
+
+    if (node.type === "msub") {
+      return {
+        type: "msub",
+        base: applyMathStyleNode(node.base, style),
+        sub: applyMathStyleNode(node.sub, style)
+      };
+    }
+
+    if (node.type === "msup") {
+      return {
+        type: "msup",
+        base: applyMathStyleNode(node.base, style),
+        sup: applyMathStyleNode(node.sup, style)
+      };
+    }
+
+    if (node.type === "msubsup") {
+      return {
+        type: "msubsup",
+        base: applyMathStyleNode(node.base, style),
+        sub: applyMathStyleNode(node.sub, style),
+        sup: applyMathStyleNode(node.sup, style)
+      };
+    }
+
+    if (node.type === "mtable") {
+      return {
+        type: "mtable",
+        rows: (node.rows || []).map((row) => row.map((cell) => applyMathStyleNode(cell, style))),
+        leftDelimiter: node.leftDelimiter || "",
+        rightDelimiter: node.rightDelimiter || ""
+      };
+    }
+
+    return node;
+  }
+
+  function applyMathStyleText(text, style) {
+    return Array.from(String(text || ""))
+      .map((ch) => {
+        const codePoint = getStyledCodePoint(ch, style);
+        return codePoint ? String.fromCodePoint(codePoint) : ch;
+      })
+      .join("");
+  }
+
+  function getStyledCodePoint(ch, style) {
+    if (!ch) {
+      return 0;
+    }
+
+    const code = ch.codePointAt(0);
+    if (typeof code !== "number") {
+      return 0;
+    }
+
+    if (style === "bold") {
+      if (code >= 0x41 && code <= 0x5a) {
+        return 0x1d400 + (code - 0x41);
+      }
+      if (code >= 0x61 && code <= 0x7a) {
+        return 0x1d41a + (code - 0x61);
+      }
+      if (code >= 0x30 && code <= 0x39) {
+        return 0x1d7ce + (code - 0x30);
+      }
+      return 0;
+    }
+
+    if (style === "script") {
+      if (code >= 0x41 && code <= 0x5a) {
+        return SCRIPT_STYLE_CODEPOINTS.upper[ch] || 0;
+      }
+      if (code >= 0x61 && code <= 0x7a) {
+        return SCRIPT_STYLE_CODEPOINTS.lower[ch] || 0;
+      }
+      return 0;
+    }
+
+    if (style === "double-struck") {
+      if (code >= 0x41 && code <= 0x5a) {
+        return DOUBLE_STRUCK_STYLE_CODEPOINTS.upper[ch] || 0;
+      }
+      if (code >= 0x61 && code <= 0x7a) {
+        return 0x1d552 + (code - 0x61);
+      }
+      if (code >= 0x30 && code <= 0x39) {
+        return 0x1d7d8 + (code - 0x30);
+      }
+      return 0;
+    }
+
+    return 0;
+  }
+
+  function parseMathEnvironment(name, content) {
+    const envName = String(name || "").trim();
+    if (!envName) {
+      return emptyNode();
+    }
+
+    if (Object.prototype.hasOwnProperty.call(MATRIX_ENVIRONMENT_DELIMITERS, envName)) {
+      const delimiters = MATRIX_ENVIRONMENT_DELIMITERS[envName];
+      const rows = splitLatexTableRows(content).map((row) =>
+        splitLatexTableCells(row).map((cell) => parseLatexFragment(cell))
+      );
+
+      return {
+        type: "mtable",
+        rows: rows.length > 0 ? rows : [[emptyNode()]],
+        leftDelimiter: delimiters.left,
+        rightDelimiter: delimiters.right
+      };
+    }
+
+    return parseLatexFragment(content);
+  }
+
+  function parseLatexFragment(fragment) {
+    const parser = createLatexParser(fragment || "");
+    const node = parser.parseExpression([]);
+    parser.skipSpaces();
+    return node || emptyNode();
+  }
+
+  function splitLatexTableRows(raw) {
+    return splitLatexAtTopLevel(raw, function (text, index, state) {
+      return (
+        text[index] === "\\" &&
+        text[index + 1] === "\\" &&
+        state.braceDepth === 0 &&
+        state.environmentDepth === 0
+      );
+    });
+  }
+
+  function splitLatexTableCells(raw) {
+    return splitLatexAtTopLevel(raw, function (text, index, state) {
+      return text[index] === "&" && state.braceDepth === 0 && state.environmentDepth === 0;
+    });
+  }
+
+  function splitLatexAtTopLevel(raw, isSeparator) {
+    const text = String(raw || "");
+    const parts = [];
+    const state = {
+      braceDepth: 0,
+      environmentDepth: 0
+    };
+
+    let current = "";
+    let index = 0;
+
+    while (index < text.length) {
+      const directive = readLatexEnvironmentDirective(text, index);
+      if (directive) {
+        if (directive.kind === "begin") {
+          state.environmentDepth += 1;
+        } else if (state.environmentDepth > 0) {
+          state.environmentDepth -= 1;
+        }
+        current += directive.raw;
+        index += directive.raw.length;
+        continue;
+      }
+
+      const ch = text[index];
+      if (ch === "{") {
+        state.braceDepth += 1;
+      } else if (ch === "}" && state.braceDepth > 0) {
+        state.braceDepth -= 1;
+      }
+
+      if (isSeparator(text, index, state)) {
+        parts.push(current.trim());
+        current = "";
+        index += text[index] === "&" ? 1 : 2;
+        while (index < text.length && /\s/.test(text[index])) {
+          index += 1;
+        }
+        continue;
+      }
+
+      current += ch;
+      index += 1;
+    }
+
+    if (current.trim() || parts.length === 0) {
+      parts.push(current.trim());
+    }
+
+    return parts.filter((part) => part !== "");
+  }
+
+  function readLatexEnvironmentDirective(text, index) {
+    const match = String(text || "")
+      .slice(index)
+      .match(/^\\(begin|end)\{([^}]*)\}/);
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      kind: match[1],
+      name: match[2] || "",
+      raw: match[0]
+    };
+  }
+
+  function buildMathMLTable(node) {
+    const rows = (node.rows || [])
+      .map(function (row) {
+        const cells = (row || [])
+          .map(function (cell) {
+            return "<mtd>" + serializeMathNode(cell) + "</mtd>";
+          })
+          .join("");
+        return "<mtr>" + cells + "</mtr>";
+      })
+      .join("");
+
+    const table = "<mtable>" + rows + "</mtable>";
+    if (!node.leftDelimiter && !node.rightDelimiter) {
+      return table;
+    }
+
+    return (
+      '<mfenced open="' +
+      escapeXml(node.leftDelimiter || "") +
+      '" close="' +
+      escapeXml(node.rightDelimiter || "") +
+      '">' +
+      table +
+      "</mfenced>"
+    );
+  }
+
+  function buildOMMLTable(node) {
+    const rows = (node.rows || [])
+      .map(function (row) {
+        const cells = (row || [])
+          .map(function (cell) {
+            return "<m:e>" + serializeOMMLArg(cell) + "</m:e>";
+          })
+          .join("");
+        return "<m:mr>" + cells + "</m:mr>";
+      })
+      .join("");
+
+    const matrix = "<m:m>" + rows + "</m:m>";
+    if (!node.leftDelimiter && !node.rightDelimiter) {
+      return matrix;
+    }
+
+    return (
+      "<m:d>" +
+      "<m:dPr>" +
+      '<m:begChr m:val="' +
+      escapeXml(node.leftDelimiter || "") +
+      '"/>' +
+      '<m:endChr m:val="' +
+      escapeXml(node.rightDelimiter || "") +
+      '"/>' +
+      "</m:dPr>" +
+      "<m:e>" +
+      matrix +
+      "</m:e>" +
+      "</m:d>"
+    );
   }
 
   function serializeMathNode(node) {
@@ -1956,6 +2428,10 @@
 
     if (node.type === "mspace") {
       return '<mspace width="' + escapeXml(node.width || "0.1667em") + '"></mspace>';
+    }
+
+    if (node.type === "mtable") {
+      return buildMathMLTable(node);
     }
 
     if (node.type === "mfrac") {
@@ -2028,6 +2504,14 @@
       return String(node.text || " ");
     }
 
+    if (node.type === "mtable") {
+      const rows = (node.rows || []).map(function (row) {
+        return (row || []).map(serializeReadableMath).join(", ");
+      });
+      const body = rows.join("; ");
+      return (node.leftDelimiter || "") + body + (node.rightDelimiter || "");
+    }
+
     if (node.type === "mfrac") {
       return "(" + serializeReadableMath(node.numerator) + ")/(" + serializeReadableMath(node.denominator) + ")";
     }
@@ -2096,6 +2580,10 @@
 
     if (node.type === "mspace") {
       return buildOMMLRun(node.text || " ");
+    }
+
+    if (node.type === "mtable") {
+      return buildOMMLTable(node);
     }
 
     if (node.type === "mfrac") {
@@ -2393,4 +2881,3 @@
     }, 1800);
   }
 })();
-
