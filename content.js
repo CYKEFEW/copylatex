@@ -307,6 +307,19 @@
     Vert: "\u2016"
   };
 
+  const LATEX_ACCENT_COMMANDS = {
+    tilde: {
+      mathml: "\u02dc",
+      omml: "\u0303",
+      readable: "tilde"
+    },
+    widetilde: {
+      mathml: "\u02dc",
+      omml: "\u0303",
+      readable: "tilde"
+    }
+  };
+
   const SCRIPT_STYLE_CODEPOINTS = {
     upper: {
       A: 0x1d49c,
@@ -1479,6 +1492,8 @@
     output = output.replace(/\\textstyle\b/g, "");
     output = output.replace(/\\left\s*/g, "");
     output = output.replace(/\\right\s*/g, "");
+    output = output.replace(/\\(?:big|Big|bigg|Bigg)(?:l|r|m)?\b\s*/g, "");
+    output = output.replace(/\\middle\s*/g, "");
     return output;
   }
 
@@ -1878,6 +1893,18 @@
         return { type: "msqrt", body: body || emptyNode() };
       }
 
+      if (LATEX_ACCENT_COMMANDS[name]) {
+        const accent = LATEX_ACCENT_COMMANDS[name];
+        const body = parseRequiredArg();
+        return {
+          type: "maccent",
+          body: body || emptyNode(),
+          mathmlAccent: accent.mathml,
+          ommlAccent: accent.omml,
+          readableName: accent.readable
+        };
+      }
+
       if (name === "overline" || name === "bar") {
         const body = parseRequiredArg();
         return { type: "mbar", body: body || emptyNode() };
@@ -2118,6 +2145,16 @@
       return {
         type: "msqrt",
         body: applyMathStyleNode(node.body, style)
+      };
+    }
+
+    if (node.type === "maccent") {
+      return {
+        type: "maccent",
+        body: applyMathStyleNode(node.body, style),
+        mathmlAccent: node.mathmlAccent || "",
+        ommlAccent: node.ommlAccent || "",
+        readableName: node.readableName || ""
       };
     }
 
@@ -2447,6 +2484,17 @@
       return "<msqrt>" + serializeMathNode(node.body) + "</msqrt>";
     }
 
+    if (node.type === "maccent") {
+      return (
+        '<mover accent="true">' +
+        serializeMathNode(node.body) +
+        "<mo>" +
+        escapeXml(node.mathmlAccent || "") +
+        "</mo>" +
+        "</mover>"
+      );
+    }
+
     if (node.type === "mbar") {
       return (
         '<mover accent="true">' +
@@ -2518,6 +2566,10 @@
 
     if (node.type === "msqrt") {
       return "sqrt(" + serializeReadableMath(node.body) + ")";
+    }
+
+    if (node.type === "maccent") {
+      return (node.readableName || "accent") + "(" + serializeReadableMath(node.body) + ")";
     }
 
     if (node.type === "mbar") {
@@ -2607,6 +2659,19 @@
         serializeOMMLArg(node.body) +
         "</m:e>" +
         "</m:rad>"
+      );
+    }
+
+    if (node.type === "maccent") {
+      return (
+        "<m:acc>" +
+        "<m:accPr><m:chr m:val=\"" +
+        escapeXml(node.ommlAccent || "") +
+        "\"/></m:accPr>" +
+        "<m:e>" +
+        serializeOMMLArg(node.body) +
+        "</m:e>" +
+        "</m:acc>"
       );
     }
 
