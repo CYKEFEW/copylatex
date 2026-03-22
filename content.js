@@ -168,6 +168,17 @@
     Phi: "\u03a6",
     Psi: "\u03a8",
     Omega: "\u03a9",
+    ell: "\u2113",
+    hbar: "\u210f",
+    imath: "\u0131",
+    jmath: "\u0237",
+    wp: "\u2118",
+    Re: "\u211c",
+    Im: "\u2111",
+    aleph: "\u2135",
+    beth: "\u2136",
+    gimel: "\u2137",
+    daleth: "\u2138",
     infty: "\u221e",
     partial: "\u2202",
     nabla: "\u2207",
@@ -182,6 +193,7 @@
     cdots: "\u22ef",
     vdots: "\u22ee",
     ddots: "\u22f1",
+    dots: "\u2026",
     times: "\u00d7",
     div: "\u00f7",
     pm: "\u00b1",
@@ -290,6 +302,13 @@
     triangle: "\u25b3",
     therefore: "\u2234",
     because: "\u2235",
+    colon: ":",
+    prime: "\u2032",
+    implies: "\u21d2",
+    iff: "\u21d4",
+    gets: "\u2190",
+    top: "\u22a4",
+    bot: "\u22a5",
     lbrace: "{",
     rbrace: "}",
     lvert: "|",
@@ -308,6 +327,16 @@
   };
 
   const LATEX_ACCENT_COMMANDS = {
+    hat: {
+      mathml: "\u02c6",
+      omml: "\u0302",
+      readable: "hat"
+    },
+    widehat: {
+      mathml: "\u02c6",
+      omml: "\u0302",
+      readable: "hat"
+    },
     tilde: {
       mathml: "\u02dc",
       omml: "\u0303",
@@ -317,8 +346,110 @@
       mathml: "\u02dc",
       omml: "\u0303",
       readable: "tilde"
+    },
+    check: {
+      mathml: "\u02c7",
+      omml: "\u030c",
+      readable: "check"
+    },
+    breve: {
+      mathml: "\u02d8",
+      omml: "\u0306",
+      readable: "breve"
+    },
+    acute: {
+      mathml: "\u00b4",
+      omml: "\u0301",
+      readable: "acute"
+    },
+    grave: {
+      mathml: "\u02cb",
+      omml: "\u0300",
+      readable: "grave"
+    },
+    dot: {
+      mathml: "\u02d9",
+      omml: "\u0307",
+      readable: "dot"
+    },
+    ddot: {
+      mathml: "\u00a8",
+      omml: "\u0308",
+      readable: "ddot"
+    },
+    vec: {
+      mathml: "\u2192",
+      omml: "\u20d7",
+      readable: "vec"
+    },
+    overrightarrow: {
+      mathml: "\u2192",
+      omml: "\u20d7",
+      readable: "vec"
+    },
+    overleftarrow: {
+      mathml: "\u2190",
+      omml: "\u20d6",
+      readable: "leftarrow"
+    },
+    overleftrightarrow: {
+      mathml: "\u2194",
+      omml: "\u20e1",
+      readable: "leftrightarrow"
     }
   };
+
+  const LATEX_NOT_TO_OPERATOR = {
+    "=": "\u2260",
+    "<": "\u226e",
+    ">": "\u226f",
+    "|": "\u2224",
+    in: "\u2209",
+    ni: "\u220c",
+    mid: "\u2224",
+    parallel: "\u2226",
+    equiv: "\u2262",
+    sim: "\u2241",
+    approx: "\u2249",
+    cong: "\u2247",
+    le: "\u2270",
+    leq: "\u2270",
+    ge: "\u2271",
+    geq: "\u2271",
+    subset: "\u2284",
+    subseteq: "\u2288",
+    supset: "\u2285",
+    supseteq: "\u2289"
+  };
+
+  const IGNORED_LATEX_COMMANDS = new Set([
+    "displaystyle",
+    "textstyle",
+    "scriptstyle",
+    "scriptscriptstyle",
+    "limits",
+    "nolimits",
+    "displaylimits",
+    "left",
+    "right",
+    "middle",
+    "big",
+    "Big",
+    "bigg",
+    "Bigg",
+    "bigl",
+    "bigr",
+    "bigm",
+    "Bigl",
+    "Bigr",
+    "Bigm",
+    "biggl",
+    "biggr",
+    "biggm",
+    "Biggl",
+    "Biggr",
+    "Biggm"
+  ]);
 
   const SCRIPT_STYLE_CODEPOINTS = {
     upper: {
@@ -1488,6 +1619,11 @@
     let output = text;
     output = output.replace(/\\dfrac\b/g, "\\frac");
     output = output.replace(/\\tfrac\b/g, "\\frac");
+    output = output.replace(/\\dbinom\b/g, "\\binom");
+    output = output.replace(/\\tbinom\b/g, "\\binom");
+    output = output.replace(/\\operatorname\*/g, "\\operatorname");
+    output = output.replace(/\\(?:left|right|middle)\s*\./g, "");
+    output = output.replace(/\\(?:big|Big|bigg|Bigg)(?:l|r|m)?\s*\./g, "");
     output = output.replace(/\\displaystyle\b/g, "");
     output = output.replace(/\\textstyle\b/g, "");
     output = output.replace(/\\left\s*/g, "");
@@ -1874,6 +2010,10 @@
         name = next();
       }
 
+      if (IGNORED_LATEX_COMMANDS.has(name)) {
+        return null;
+      }
+
       if (name === "frac") {
         const numerator = parseRequiredArg();
         const denominator = parseRequiredArg();
@@ -1893,6 +2033,36 @@
         return { type: "msqrt", body: body || emptyNode() };
       }
 
+      if (name === "binom") {
+        const numerator = parseRequiredArg();
+        const denominator = parseRequiredArg();
+        return {
+          type: "mbinom",
+          numerator: numerator || emptyNode(),
+          denominator: denominator || emptyNode()
+        };
+      }
+
+      if (name === "overset" || name === "stackrel") {
+        const over = parseRequiredArg();
+        const base = parseRequiredArg();
+        return {
+          type: "moverset",
+          base: base || emptyNode(),
+          over: over || emptyNode()
+        };
+      }
+
+      if (name === "underset") {
+        const under = parseRequiredArg();
+        const base = parseRequiredArg();
+        return {
+          type: "munderset",
+          base: base || emptyNode(),
+          under: under || emptyNode()
+        };
+      }
+
       if (LATEX_ACCENT_COMMANDS[name]) {
         const accent = LATEX_ACCENT_COMMANDS[name];
         const body = parseRequiredArg();
@@ -1910,6 +2080,32 @@
         return { type: "mbar", body: body || emptyNode() };
       }
 
+      if (name === "not") {
+        const negated = consumeNegatedOperator();
+        if (negated) {
+          return { type: "mo", text: negated };
+        }
+        return { type: "mo", text: "\u0338" };
+      }
+
+      if (name === "underline") {
+        const body = parseRequiredArg();
+        return { type: "munderline", body: body || emptyNode() };
+      }
+
+      if (name === "overbrace" || name === "underbrace") {
+        const body = parseRequiredArg();
+        const isOver = name === "overbrace";
+        return {
+          type: "mgroupchr",
+          body: body || emptyNode(),
+          mathmlChar: isOver ? "\u23de" : "\u23df",
+          ommlChar: isOver ? "\u23de" : "\u23df",
+          position: isOver ? "top" : "bottom",
+          readableName: name
+        };
+      }
+
       if (name === "quad") {
         return { type: "mspace", width: "1em", text: " " };
       }
@@ -1925,6 +2121,18 @@
       if (name === "text" || name === "mathrm" || name === "operatorname") {
         const raw = parseRawGroupText();
         return { type: "mtext", text: raw };
+      }
+
+      if (name === "mathit" || name === "mathnormal") {
+        return parseRequiredArg() || emptyNode();
+      }
+
+      if (name === "mathsf") {
+        return applyMathStyleNode(parseRequiredArg() || emptyNode(), "sans-serif");
+      }
+
+      if (name === "mathtt") {
+        return applyMathStyleNode(parseRequiredArg() || emptyNode(), "monospace");
       }
 
       if (name === "mathbf" || name === "boldsymbol" || name === "bm") {
@@ -2023,7 +2231,12 @@
             text += ch;
           }
         } else if (ch === "\\" && !isEnd()) {
-          text += next();
+          const escaped = next();
+          if (escaped === " " || escaped === "," || escaped === ";" || escaped === ":" || escaped === "!") {
+            text += " ";
+          } else {
+            text += escaped;
+          }
         } else {
           text += ch;
         }
@@ -2049,6 +2262,43 @@
           }
         }
       }
+    }
+
+    function consumeNegatedOperator() {
+      skipSpaces();
+      if (isEnd()) {
+        return "";
+      }
+
+      const direct = LATEX_NOT_TO_OPERATOR[peek()] || "";
+      if (direct) {
+        next();
+        return direct;
+      }
+
+      if (peek() !== "\\") {
+        return "";
+      }
+
+      let tempIndex = index + 1;
+      let name = "";
+      while (tempIndex < source.length && /[A-Za-z]/.test(source[tempIndex])) {
+        name += source[tempIndex];
+        tempIndex += 1;
+      }
+
+      if (!name && tempIndex < source.length) {
+        name = source[tempIndex];
+        tempIndex += 1;
+      }
+
+      const mapped = LATEX_NOT_TO_OPERATOR[name] || "";
+      if (!mapped) {
+        return "";
+      }
+
+      index = tempIndex;
+      return mapped;
     }
 
     function parseEnvironment(name) {
@@ -2141,6 +2391,30 @@
       };
     }
 
+    if (node.type === "mbinom") {
+      return {
+        type: "mbinom",
+        numerator: applyMathStyleNode(node.numerator, style),
+        denominator: applyMathStyleNode(node.denominator, style)
+      };
+    }
+
+    if (node.type === "moverset") {
+      return {
+        type: "moverset",
+        base: applyMathStyleNode(node.base, style),
+        over: applyMathStyleNode(node.over, style)
+      };
+    }
+
+    if (node.type === "munderset") {
+      return {
+        type: "munderset",
+        base: applyMathStyleNode(node.base, style),
+        under: applyMathStyleNode(node.under, style)
+      };
+    }
+
     if (node.type === "msqrt") {
       return {
         type: "msqrt",
@@ -2162,6 +2436,24 @@
       return {
         type: "mbar",
         body: applyMathStyleNode(node.body, style)
+      };
+    }
+
+    if (node.type === "munderline") {
+      return {
+        type: "munderline",
+        body: applyMathStyleNode(node.body, style)
+      };
+    }
+
+    if (node.type === "mgroupchr") {
+      return {
+        type: "mgroupchr",
+        body: applyMathStyleNode(node.body, style),
+        mathmlChar: node.mathmlChar || "",
+        ommlChar: node.ommlChar || "",
+        position: node.position || "top",
+        readableName: node.readableName || ""
       };
     }
 
@@ -2253,6 +2545,32 @@
       }
       if (code >= 0x30 && code <= 0x39) {
         return 0x1d7d8 + (code - 0x30);
+      }
+      return 0;
+    }
+
+    if (style === "sans-serif") {
+      if (code >= 0x41 && code <= 0x5a) {
+        return 0x1d5a0 + (code - 0x41);
+      }
+      if (code >= 0x61 && code <= 0x7a) {
+        return 0x1d5ba + (code - 0x61);
+      }
+      if (code >= 0x30 && code <= 0x39) {
+        return 0x1d7e2 + (code - 0x30);
+      }
+      return 0;
+    }
+
+    if (style === "monospace") {
+      if (code >= 0x41 && code <= 0x5a) {
+        return 0x1d670 + (code - 0x41);
+      }
+      if (code >= 0x61 && code <= 0x7a) {
+        return 0x1d68a + (code - 0x61);
+      }
+      if (code >= 0x30 && code <= 0x39) {
+        return 0x1d7f6 + (code - 0x30);
       }
       return 0;
     }
@@ -2480,6 +2798,25 @@
       );
     }
 
+    if (node.type === "mbinom") {
+      return (
+        '<mfenced open="(" close=")">' +
+        "<mfrac linethickness=\"0\">" +
+        serializeMathNode(node.numerator) +
+        serializeMathNode(node.denominator) +
+        "</mfrac>" +
+        "</mfenced>"
+      );
+    }
+
+    if (node.type === "moverset") {
+      return "<mover>" + serializeMathNode(node.base) + serializeMathNode(node.over) + "</mover>";
+    }
+
+    if (node.type === "munderset") {
+      return "<munder>" + serializeMathNode(node.base) + serializeMathNode(node.under) + "</munder>";
+    }
+
     if (node.type === "msqrt") {
       return "<msqrt>" + serializeMathNode(node.body) + "</msqrt>";
     }
@@ -2501,6 +2838,31 @@
         serializeMathNode(node.body) +
         "<mo>&#x203E;</mo>" +
         "</mover>"
+      );
+    }
+
+    if (node.type === "munderline") {
+      return (
+        '<munder accentunder="true">' +
+        serializeMathNode(node.body) +
+        "<mo>&#x332;</mo>" +
+        "</munder>"
+      );
+    }
+
+    if (node.type === "mgroupchr") {
+      const wrapper =
+        node.position === "bottom"
+          ? { open: '<munder accentunder="true">', close: "</munder>" }
+          : { open: '<mover accent="true">', close: "</mover>" };
+
+      return (
+        wrapper.open +
+        serializeMathNode(node.body) +
+        "<mo>" +
+        escapeXml(node.mathmlChar || "") +
+        "</mo>" +
+        wrapper.close
       );
     }
 
@@ -2564,6 +2926,18 @@
       return "(" + serializeReadableMath(node.numerator) + ")/(" + serializeReadableMath(node.denominator) + ")";
     }
 
+    if (node.type === "mbinom") {
+      return "binom(" + serializeReadableMath(node.numerator) + "," + serializeReadableMath(node.denominator) + ")";
+    }
+
+    if (node.type === "moverset") {
+      return serializeReadableMath(node.base) + "^" + wrapReadableScript(node.over);
+    }
+
+    if (node.type === "munderset") {
+      return serializeReadableMath(node.base) + "_" + wrapReadableScript(node.under);
+    }
+
     if (node.type === "msqrt") {
       return "sqrt(" + serializeReadableMath(node.body) + ")";
     }
@@ -2574,6 +2948,14 @@
 
     if (node.type === "mbar") {
       return "overline(" + serializeReadableMath(node.body) + ")";
+    }
+
+    if (node.type === "munderline") {
+      return "underline(" + serializeReadableMath(node.body) + ")";
+    }
+
+    if (node.type === "mgroupchr") {
+      return (node.readableName || "groupchr") + "(" + serializeReadableMath(node.body) + ")";
     }
 
     if (node.type === "msub") {
@@ -2651,6 +3033,51 @@
       );
     }
 
+    if (node.type === "mbinom") {
+      return (
+        "<m:d>" +
+        "<m:dPr><m:begChr m:val=\"(\"/><m:endChr m:val=\")\"/></m:dPr>" +
+        "<m:e>" +
+        "<m:f>" +
+        "<m:fPr><m:type m:val=\"noBar\"/></m:fPr>" +
+        "<m:num>" +
+        serializeOMMLArg(node.numerator) +
+        "</m:num>" +
+        "<m:den>" +
+        serializeOMMLArg(node.denominator) +
+        "</m:den>" +
+        "</m:f>" +
+        "</m:e>" +
+        "</m:d>"
+      );
+    }
+
+    if (node.type === "moverset") {
+      return (
+        "<m:limUpp>" +
+        "<m:e>" +
+        serializeOMMLArg(node.base) +
+        "</m:e>" +
+        "<m:lim>" +
+        serializeOMMLArg(node.over) +
+        "</m:lim>" +
+        "</m:limUpp>"
+      );
+    }
+
+    if (node.type === "munderset") {
+      return (
+        "<m:limLow>" +
+        "<m:e>" +
+        serializeOMMLArg(node.base) +
+        "</m:e>" +
+        "<m:lim>" +
+        serializeOMMLArg(node.under) +
+        "</m:lim>" +
+        "</m:limLow>"
+      );
+    }
+
     if (node.type === "msqrt") {
       return (
         "<m:rad>" +
@@ -2683,6 +3110,35 @@
         serializeOMMLArg(node.body) +
         "</m:e>" +
         "</m:bar>"
+      );
+    }
+
+    if (node.type === "munderline") {
+      return (
+        "<m:bar>" +
+        "<m:barPr><m:pos m:val=\"bot\"/></m:barPr>" +
+        "<m:e>" +
+        serializeOMMLArg(node.body) +
+        "</m:e>" +
+        "</m:bar>"
+      );
+    }
+
+    if (node.type === "mgroupchr") {
+      return (
+        "<m:groupChr>" +
+        "<m:groupChrPr>" +
+        "<m:chr m:val=\"" +
+        escapeXml(node.ommlChar || "") +
+        "\"/>" +
+        "<m:pos m:val=\"" +
+        escapeXml(node.position === "bottom" ? "bot" : "top") +
+        "\"/>" +
+        "</m:groupChrPr>" +
+        "<m:e>" +
+        serializeOMMLArg(node.body) +
+        "</m:e>" +
+        "</m:groupChr>"
       );
     }
 
