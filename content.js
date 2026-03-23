@@ -422,6 +422,42 @@
     supseteq: "\u2289"
   };
 
+  const LATEX_NAMED_OPERATORS = {
+    max: { text: "max", limits: true },
+    min: { text: "min", limits: true },
+    sup: { text: "sup", limits: true },
+    inf: { text: "inf", limits: true },
+    lim: { text: "lim", limits: true },
+    limsup: { text: "lim sup", limits: true },
+    liminf: { text: "lim inf", limits: true },
+    argmax: { text: "arg max", limits: true },
+    argmin: { text: "arg min", limits: true },
+    det: { text: "det", limits: false },
+    dim: { text: "dim", limits: false },
+    gcd: { text: "gcd", limits: false },
+    hom: { text: "hom", limits: false },
+    ker: { text: "ker", limits: false },
+    lg: { text: "lg", limits: false },
+    ln: { text: "ln", limits: false },
+    log: { text: "log", limits: false },
+    exp: { text: "exp", limits: false },
+    sin: { text: "sin", limits: false },
+    cos: { text: "cos", limits: false },
+    tan: { text: "tan", limits: false },
+    cot: { text: "cot", limits: false },
+    sec: { text: "sec", limits: false },
+    csc: { text: "csc", limits: false },
+    sinh: { text: "sinh", limits: false },
+    cosh: { text: "cosh", limits: false },
+    tanh: { text: "tanh", limits: false },
+    coth: { text: "coth", limits: false },
+    arcsin: { text: "arcsin", limits: false },
+    arccos: { text: "arccos", limits: false },
+    arctan: { text: "arctan", limits: false },
+    deg: { text: "deg", limits: false },
+    Pr: { text: "Pr", limits: false }
+  };
+
   const IGNORED_LATEX_COMMANDS = new Set([
     "displaystyle",
     "textstyle",
@@ -1185,6 +1221,20 @@
   }
 
   function buildWordParagraphXml(items) {
+    if (isDisplayMathParagraph(items)) {
+      const omml = latexToOMML(items[0].content);
+      if (omml) {
+        return (
+          "<w:p>" +
+          "<m:oMathPara>" +
+          "<m:oMathParaPr><m:jc m:val=\"centerGroup\"/></m:oMathParaPr>" +
+          omml +
+          "</m:oMathPara>" +
+          "</w:p>"
+        );
+      }
+    }
+
     const inner = items
       .map((item) => {
         if (item.type === "math") {
@@ -1199,6 +1249,10 @@
       .join("");
 
     return "<w:p>" + (inner || "<w:r><w:t xml:space=\"preserve\"></w:t></w:r>") + "</w:p>";
+  }
+
+  function isDisplayMathParagraph(items) {
+    return Array.isArray(items) && items.length === 1 && items[0] && items[0].type === "math";
   }
 
   function buildWordTextRun(text) {
@@ -1962,6 +2016,19 @@
         }
       }
 
+      if (isLimitStyleOperator(base)) {
+        if (sub && sup) {
+          return { type: "munderover", base, under: sub, over: sup };
+        }
+        if (sub) {
+          return { type: "munderset", base, under: sub };
+        }
+        if (sup) {
+          return { type: "moverset", base, over: sup };
+        }
+        return base;
+      }
+
       if (sub && sup) {
         return { type: "msubsup", base, sub, sup };
       }
@@ -2160,6 +2227,15 @@
         return null;
       }
 
+      if (LATEX_NAMED_OPERATORS[name]) {
+        const operator = LATEX_NAMED_OPERATORS[name];
+        return {
+          type: "moperator",
+          text: operator.text,
+          limits: Boolean(operator.limits)
+        };
+      }
+
       if (LATEX_CMD_TO_CHAR[name]) {
         return { type: "mi", text: LATEX_CMD_TO_CHAR[name] };
       }
@@ -2301,6 +2377,10 @@
       return mapped;
     }
 
+    function isLimitStyleOperator(node) {
+      return Boolean(node && node.type === "moperator" && node.limits);
+    }
+
     function parseEnvironment(name) {
       return parseMathEnvironment(name, readEnvironmentBody(name));
     }
@@ -2383,6 +2463,14 @@
       };
     }
 
+    if (node.type === "moperator") {
+      return {
+        type: "moperator",
+        text: applyMathStyleText(node.text || "", style),
+        limits: Boolean(node.limits)
+      };
+    }
+
     if (node.type === "mfrac") {
       return {
         type: "mfrac",
@@ -2412,6 +2500,15 @@
         type: "munderset",
         base: applyMathStyleNode(node.base, style),
         under: applyMathStyleNode(node.under, style)
+      };
+    }
+
+    if (node.type === "munderover") {
+      return {
+        type: "munderover",
+        base: applyMathStyleNode(node.base, style),
+        under: applyMathStyleNode(node.under, style),
+        over: applyMathStyleNode(node.over, style)
       };
     }
 
@@ -2769,6 +2866,10 @@
       return "<mi>" + escapeXml(node.text || "") + "</mi>";
     }
 
+    if (node.type === "moperator") {
+      return '<mi mathvariant="normal">' + escapeXml(node.text || "") + "</mi>";
+    }
+
     if (node.type === "mn") {
       return "<mn>" + escapeXml(node.text || "") + "</mn>";
     }
@@ -2815,6 +2916,16 @@
 
     if (node.type === "munderset") {
       return "<munder>" + serializeMathNode(node.base) + serializeMathNode(node.under) + "</munder>";
+    }
+
+    if (node.type === "munderover") {
+      return (
+        "<munderover>" +
+        serializeMathNode(node.base) +
+        serializeMathNode(node.under) +
+        serializeMathNode(node.over) +
+        "</munderover>"
+      );
     }
 
     if (node.type === "msqrt") {
@@ -2906,7 +3017,13 @@
       return (node.children || []).map(serializeReadableMath).join("");
     }
 
-    if (node.type === "mi" || node.type === "mn" || node.type === "mo" || node.type === "mtext") {
+    if (
+      node.type === "mi" ||
+      node.type === "mn" ||
+      node.type === "mo" ||
+      node.type === "mtext" ||
+      node.type === "moperator"
+    ) {
       return String(node.text || "");
     }
 
@@ -2936,6 +3053,16 @@
 
     if (node.type === "munderset") {
       return serializeReadableMath(node.base) + "_" + wrapReadableScript(node.under);
+    }
+
+    if (node.type === "munderover") {
+      return (
+        serializeReadableMath(node.base) +
+        "_" +
+        wrapReadableScript(node.under) +
+        "^" +
+        wrapReadableScript(node.over)
+      );
     }
 
     if (node.type === "msqrt") {
@@ -3008,7 +3135,13 @@
       return '<m:r><m:t xml:space="preserve"></m:t></m:r>';
     }
 
-    if (node.type === "mi" || node.type === "mn" || node.type === "mo" || node.type === "mtext") {
+    if (
+      node.type === "mi" ||
+      node.type === "mn" ||
+      node.type === "mo" ||
+      node.type === "mtext" ||
+      node.type === "moperator"
+    ) {
       return buildOMMLRun(node.text || "");
     }
 
@@ -3075,6 +3208,26 @@
         serializeOMMLArg(node.under) +
         "</m:lim>" +
         "</m:limLow>"
+      );
+    }
+
+    if (node.type === "munderover") {
+      return (
+        "<m:limUpp>" +
+        "<m:e>" +
+        "<m:limLow>" +
+        "<m:e>" +
+        serializeOMMLArg(node.base) +
+        "</m:e>" +
+        "<m:lim>" +
+        serializeOMMLArg(node.under) +
+        "</m:lim>" +
+        "</m:limLow>" +
+        "</m:e>" +
+        "<m:lim>" +
+        serializeOMMLArg(node.over) +
+        "</m:lim>" +
+        "</m:limUpp>"
       );
     }
 
